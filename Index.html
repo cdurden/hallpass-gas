@@ -210,7 +210,7 @@
     function getPasses(callback) {
       console.log("Getting pass data from sheet");
       var url =
-          "https://docs.google.com/spreadsheets/d/1Uij5GC-HJB4wd8xMAgtxUe6QBSEkt_vsjCtuRHhok3M/edit#gid=0"
+          "https://docs.google.com/spreadsheets/d/<?= encryptedSpreadsheetId ?>/edit#gid=0"
       var query = new google.visualization.Query(url);
       query.setQuery("select A, B, C, D format A '2021-11-02 12:00:00'");
       query.send(callback);
