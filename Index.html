@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <script src='https://cdn.jsdelivr.net/npm/js-sha256@0.9.0/src/sha256.min.js'></script>
+    <style>
+      body {
+        font-size: 18pt;
+        text-align: center;
+        margin: 0 5vw 0 5vw;
+      }
+      /* The Modal (background) */
+      .modal {
+        display: none; /* Hidden by default */
+        position: fixed; /* Stay in place */
+        z-index: 1; /* Sit on top */
+        left: 0;
+        top: 0;
+        width: 100%; /* Full width */
+        height: 100%; /* Full height */
+        overflow: auto; /* Enable scroll if needed */
+        background-color: rgb(0,0,0); /* Fallback color */
+        background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+      }
+
+      /* Modal Content/Box */
+      .modal-content {
+        background-color: #fefefe;
+        margin: 15% auto; /* 15% from the top and centered */
+        padding: 20px;
+        border: 1px solid #888;
+        width: 80%; /* Could be more or less, depending on screen size */
+      }
+    </style>
+  </head>
+
+  <body>
+    <p>
+      <b>You are logged in as:</b> <?= email; ?>
+    </p>
+
+    <!-- Displayed when the user has submitted either the start or the end form -->
+    <div class="modal" id="reloadWindowModal">
+      <div class="modal-content" id="hallpassStarted">
+        <h2>Your hall pass request has been submitted.</h2>
+        <p>
+        <a id="reloadWindowLink" href="<?= hallpassAppUrl; ?>" target="_top">Click here</a> to see the status of your pass.
+        </p>
+      </div>
+      <div class="modal-content" id="hallpassEnded">
+        <h2>You have ended your hall pass.</h2>
+        <p>
+        You may return to this page later or <a id="reloadWindowLink" href="<?= hallpassAppUrl; ?>" target="_top">click here</a> to request another hall pass.
+        </p>
+      </div>
+    </div>
+    
+    <!-- Displayed when the user has an active pass with today's date -->
+    <div style="display: none; clear: both;" id="activePassInfo">
+      <p>You currently have an active pass</p>
+      <p>Active since <span id="activePassStartTime"></span>. Duration: <b><span id="activePassDuration"></span></b></p>
+      <p>If you are out of class for more than 10 minutes you will be marked absent.</p>
+    </div>
+
+    <p>
+    <!-- Displayed when the user has no active pass with today's date -->
+    <span style="display: none; clear: both;" id="noActivePass">
+      You do not currently have an active pass.
+    </span>
+
+    <!-- The following is always displayed -->
+    <div style="display: none; clear: both;" id="passesUsedInfo">
+      <p>You have used <span id="passesUsed"></span> out of <span id="passLimit"></span> passes today.</p>
+    </div>
+
+    <!-- Displayed if the user has used fewer passes than the pass limit and there is no active pass with today's date -->    
+    <span style="display: none; clear: both;" id="passAvailable">
+      You may create a pass by completing the form below.
+    </span>
+    </p>
+
+    <!-- Displayed if the user has used fewer passes than the pass limit and there is no active pass with today's date -->
+    
+    <iframe
+      style="width: 100%; height: 50em; display: none;"
+      id="startHallpassForm"
+      src="https://docs.google.com/forms/d/e/1FAIpQLSfZU8s4w4rAuXfMT3hUFLSJdJTYxtP11ALUC_wGpjXFSHuxNA/viewform?embedded=true"
+      frameborder="0" marginheight="0" marginwidth="0">Loading…</iframe>
+
+    <!-- Displayed if the user has an active pass with today's date --> 
+    <iframe
+      style="width: 100%; height: 50em; display: none;"
+      id="endHallpassForm"
+      src="https://docs.google.com/forms/d/e/1FAIpQLSeJNZRWjkHkVyAHxojvyLUeX_9axi1TBNa4Cj1zSGduwFjzJQ/viewform?embedded=true"
+      frameborder="0" marginheight="0" marginwidth="0">Loading…</iframe>
+  </body>
+
+  <script>
+    var email;
+    var activePassInterval;
+    google.charts.load("current");
+    google.charts.setOnLoadCallback(init);
+    function pad(num, size) {
+        num = num.toString();
+        while (num.length < size) num = "0" + num;
+        return num;
+    }
+    function showActivePassInfo(activePass) {
+      document.getElementById("noActivePass").style.display = "none";
+      document.getElementById("activePassInfo").style.display = "block";
+      var start = new Date(activePass[0]);
+      document.getElementById("activePassStartTime").innerHTML = activePass[0];
+      updateActivePassDurationInterval = setInterval(function() {
+          var now = Date.now();
+          var seconds = Math.floor((now - start.getTime())/1000);
+          var min = Math.floor(seconds/60);
+          var hour = Math.floor(min/60);
+          document.getElementById("activePassDuration").innerHTML = `${pad(hour,2)}:${pad(min - hour*60,2)}:${pad(seconds - min*60,2)}`;
+      }, 1000);
+    }
+    function updatePassInfo (myMostRecentActivePass, passesUsed, passLimit) {
+      // Update user interface elements in the DOM
+      document.getElementById("passesUsed").innerHTML = passesUsed;
+      document.getElementById("passLimit").innerHTML = passLimit;
+      document.getElementById("passesUsedInfo").style.display = "block";
+      if (passesUsed < passLimit) {
+        document.getElementById("startHallpassForm").style.display = "block";
+        document.getElementById("passAvailable").style.display = "block";
+      } else {
+        document.getElementById("startHallpassForm").style.display = "none";
+        document.getElementById("passAvailable").style.display = "none";
+      }
+      if (myMostRecentActivePass !== undefined) {
+        document.getElementById("startHallpassForm").style.display = "none";
+        document.getElementById("passAvailable").style.display = "none";
+        document.getElementById("endHallpassForm").style.display = "block";
+        showActivePassInfo(myMostRecentActivePass);
+      } else {
+        document.getElementById("endHallpassForm").style.display = "none";
+        document.getElementById("activePassInfo").style.display = "none";
+        document.getElementById("noActivePass").style.display = "block";
+      }
+    }
+    function isToday(someDate) {
+      const today = new Date();
+      return someDate.getDate() == today.getDate() &&
+        someDate.getMonth() == today.getMonth() &&
+        someDate.getFullYear() == today.getFullYear();
+    }
+    function getMyPassesFromToday(queryResponse, email) {
+      const passDataTable = queryResponse.getDataTable();
+      const nColumns = passDataTable.getNumberOfColumns();
+      const nRows = passDataTable.getNumberOfRows();
+      const myPassesFromToday = [];
+      // Create date formatter and apply to data table column index 0
+      const formatDate = new google.visualization.DateFormat({
+          pattern: 'MM/dd/YYYY HH:mm:ss',
+          timeZone: -6
+      });
+      passDataTable.setColumnProperty(0, "type", "datetime");
+      formatDate.format(passDataTable, 0);
+      var pass;
+      for (var i = 0; i < nRows; i++) {
+        pass = [];
+        for (var j = 0; j < nColumns; j++) {
+          pass.push(passDataTable.getFormattedValue(i, j));
+        }
+        console.log(pass[1]);
+        console.log(email);
+        console.log(sha256(email));
+        if (pass[1] === sha256(email) && isToday(new Date(pass[0]))) {
+          myPassesFromToday.push(pass);
+        }
+      }
+      return myPassesFromToday;
+    }
+    function getMostRecentPass(passes) {
+      console.log(passes);
+      var mostRecentPass;
+      for (var pass of passes) {
+        console.log(pass);
+        if (pass[0] > mostRecentPass?.[0] || mostRecentPass === undefined) {
+          mostRecentPass = pass;
+        }
+      }
+      console.log(mostRecentPass);
+      return mostRecentPass;
+    }
+    function processPasses(queryResponse) {
+      const myPassesFromToday = getMyPassesFromToday(queryResponse, <?= email ?>)
+      const myMostRecentActivePass = getMostRecentPass(myPassesFromToday.filter(function(pass) { return pass[3]==="active"; }));
+      const passesUsed = myPassesFromToday.filter(function(pass) { return (pass[3] === "active" || pass[3] === "inactive"); }).length;
+      const passLimit = 2;
+      updatePassInfo(myMostRecentActivePass, passesUsed, passLimit);
+    }
+    function detectFormSubmission(action, detectFormSubmissionInterval) {
+      return function(queryResponse) {
+        const myPassesFromToday = getMyPassesFromToday(queryResponse, <?= email ?>)
+        const myMostRecentActivePass = getMostRecentPass(myPassesFromToday.filter(function(pass) { return pass[3]=== "active"; }));
+        if ((action === "end" && myMostRecentActivePass === undefined) || (action === "start" && myMostRecentActivePass !== undefined)) {
+          var activeConfirmationElementId = action === "start" ? "hallpassStarted" : "hallpassEnded";
+          var inactiveConfirmationElementId = action === "start" ? "hallpassEnded" : "hallpassStarted";
+          document.getElementById("reloadWindowModal").style.display = "block";
+          document.getElementById(activeConfirmationElementId).style.display = "block";
+          document.getElementById(inactiveConfirmationElementId).style.display = "none";
+          clearInterval(detectFormSubmissionInterval);
+        }
+      }
+    }
+    function getPasses(callback) {
+      console.log("Getting pass data from sheet");
+      var url =
+          "https://docs.google.com/spreadsheets/d/1Uij5GC-HJB4wd8xMAgtxUe6QBSEkt_vsjCtuRHhok3M/edit#gid=0"
+      var query = new google.visualization.Query(url);
+      query.setQuery("select A, B, C, D format A '2021-11-02 12:00:00'");
+      query.send(callback);
+    }
+    function init() {
+      getPasses(processPasses);
+    }
+    var startHallpassForm = document.getElementById("startHallpassForm");
+    var endHallpassForm = document.getElementById("endHallpassForm");
+    function iframeReloader(action) {
+      var iframeLoads = 0;
+      return function(event) {
+        var iframe = event.target;
+        iframeLoads += 1;
+        console.log(`iframe has loaded ${iframeLoads} times`);
+        if (iframeLoads > 1) {
+          document.body.scrollTop = document.documentElement.scrollTop = 0;
+          var detectFormSubmissionInterval = setInterval(function() {
+            getPasses(detectFormSubmission(action, detectFormSubmissionInterval));
+          }, 1000);
+        }
+      };
+    }
+    startHallpassForm.addEventListener("load", iframeReloader("start"));
+    endHallpassForm.addEventListener("load", iframeReloader("end"));
+  </script>
+
+</html>
