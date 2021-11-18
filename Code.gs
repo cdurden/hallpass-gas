@@ -82,6 +82,7 @@ function passAllowed(pass) {
     datetime.setHours(hours, mins);
     return datetime;
   }
+  return true;
   const periodStartTimes = [[8,40],[9,21],[10,2],[10,43],[11,24],[11,55],[12,26],[12,57],[1,38],[2,19]].map(getDatetime);
   const periodEndTimes = [[9,20],[10,1],[10,42],[11,23],[11,54],[12,25],[12,56],[1,37],[2,18],[2,59]].map(getDatetime);
   if (

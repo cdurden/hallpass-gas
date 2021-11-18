@@ -44,7 +44,9 @@
       <div class="modal-content" id="hallpassApproved">
         <h2>Your hall pass request has been approved.</h2>
         <p>
-          <form action="" method="POST" id="activatePassForm">
+          <form action="<?= hallpassAppUrl; ?>" method="POST" id="activatePassForm">
+            <input type="hidden" name="passId" id="hallpassIdInput">
+            <input type="hidden" name="action" value="activate">
             <a id="activatePassLink" onclick="document.getElementById('activatePassForm').submit();" target="_top">Click here</a> to see the activate your pass.
           </form>
         </p>
@@ -236,6 +238,7 @@
         if (myMostRecentRequestedPass?.[4] === "approved") {
           document.getElementById("reloadWindowModal").style.display = "block";
           document.getElementById("hallpassApproved").style.display = "block";
+          document.getElementById("hallpassIdInput").value = myMostRecentRequestedPass[0];
           document.getElementById("hallpassDenied").style.display = "none";
           clearInterval(detectFormSubmissionInterval);
         } else if (myMostRecentRequestedPass?.[4] === "denied") {
