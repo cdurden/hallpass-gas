@@ -162,7 +162,7 @@ function getPassFromId(id, sheet) {
   const width = sheet.getDataRange().getWidth();
   return sheet.getRange(rowIndex+1, 1, 1, width).getValues()[0];
 }
-function endPass(pass, sheets) {
+function endPass(pass) {
   const now = Date.now();
   const start = new Date(myMostRecentPass[0]).getTime();
   const durationString = getDurationString(start, now);
@@ -171,12 +171,10 @@ function endPass(pass, sheets) {
 }
 function onEndHallpassFormSubmit(event) {
   const response = event.response;
-  const encryptedSheet = SpreadsheetApp.openById(encryptedSpreadsheetId).getSheets()[0];
-  const myPassesFromToday = getMyPassesFromToday(encryptedSheet, response.getRespondentEmail(), true);
-  const myMostRecentPass = getMostRecentPass(myPassesFromToday);
-  //const myMostRecentPassRowIndex = myMostRecentPass.slice(-1)[0];
-  //encryptedSheet.getRange(myMostRecentPassRowIndex+1, 4, 1, 1).setValues([["inactive"]]);
-  endPass(myMostRecentPass, [encryptedSheet, monitoringSheet]);
+  const monitoringSheet = SpreadsheetApp.openById(encryptedSpreadsheetId).getSheets()[0];
+  const myActivePassesFromToday = getMyPassesFromToday(monitoringSheet, response.getRespondentEmail()).filter(function(pass) { return (pass[4] === "active"); });
+  const myMostRecentPass = getMostRecentPass(myActivePassesFromToday);
+  endPass(myMostRecentPass);
 }
 function appendPassToSheet(sheet, pass) {
   const height = sheet.getDataRange().getHeight();
