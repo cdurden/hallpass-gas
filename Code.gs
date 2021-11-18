@@ -171,10 +171,12 @@ function endPass(pass) {
 }
 function onEndHallpassFormSubmit(event) {
   const response = event.response;
-  const monitoringSheet = SpreadsheetApp.openById(encryptedSpreadsheetId).getSheets()[0];
+  const monitoringSheet = SpreadsheetApp.openById(monitoringSpreadsheetId).getSheets()[0];
   const myActivePassesFromToday = getMyPassesFromToday(monitoringSheet, response.getRespondentEmail()).filter(function(pass) { return (pass[4] === "active"); });
-  const myMostRecentPass = getMostRecentPass(myActivePassesFromToday);
-  endPass(myMostRecentPass);
+  const myMostRecentActivePass = getMostRecentPass(myActivePassesFromToday);
+  if(myMostRecentActivePass !== undefined) {
+    endPass(myMostRecentActivePass);
+  }
 }
 function appendPassToSheet(sheet, pass) {
   const height = sheet.getDataRange().getHeight();
