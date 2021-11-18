@@ -169,7 +169,8 @@ function endPass(pass, sheets) {
   pass[3] = 'inactive';
   updatePass(pass);
 }
-function onEndHallpassFormSubmit(response) {
+function onEndHallpassFormSubmit(event) {
+  const response = event.response;
   const encryptedSheet = SpreadsheetApp.openById(encryptedSpreadsheetId).getSheets()[0];
   const myPassesFromToday = getMyPassesFromToday(encryptedSheet, response.getRespondentEmail(), true);
   const myMostRecentPass = getMostRecentPass(myPassesFromToday);
