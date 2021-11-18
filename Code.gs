@@ -93,7 +93,8 @@ function passAllowed(pass) {
     }))) {
       pass[5] = "You may not start a pass during the first or last 10 minutes of a class period.";
       return false;
-    }
+  }
+  return true
 }
 function getMostRecentActivePassRowNumber(data, email) {
   var mostRecentRow;
@@ -115,7 +116,6 @@ function getMyPassesFromToday(sheet, email) {
   // Get today's most recent active pass for this user
   for (var i = 1; i < nRows; i++) {
       var pass = data[i];
-      pass.push(i);
       if (pass[2] === email && isToday(new Date(pass[1]))) {
         passes.push(pass);
       }
@@ -154,7 +154,7 @@ function updatePass(newPass, sheet) {
 }
 function getPassFromId(id, sheet) {
   const rowIndex = getRowIndexFromId(id, sheet)
-  const width = sheet.getDataRange().getHeight();
+  const width = sheet.getDataRange().getWidth();
   return sheet.getRange(rowIndex+1, 1, 1, width).getValues()[0];
 }
 function endPass(pass, sheets) {
@@ -175,21 +175,21 @@ function onEndHallpassFormSubmit(response) {
 }
 function appendPassToSheet(sheet, pass) {
   const height = sheet.getDataRange().getHeight();
-  sheet.getRange(height+1, 1, 1, 4).setValues([pass]);
+  sheet.getRange(height+1, 1, 1, pass.length).setValues([pass]);
 }
 function encryptPass(pass) {
   const encryptedPass = [...pass]
-  encryptedPass[1] = toHexString(Utilities.computeDigest(pass[1]));
+  encryptedPass[2] = toHexString(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, pass[2]));
   return encryptedPass;
 }
 function createPass(response, status) {
   const formItemResponses = response.getItemResponses();
-  const pass = [response.getId(), Utilities.formatDate(passStartTime, 'America/Chicago', 'MM/dd/yyyy HH:mm:ss'), response.getRespondentEmail(), formItemResponses[formItemResponsesIndex.get('destination')].getResponse(), status];
+  const passStartTime = new Date(response.getTimestamp());
+  const pass = [response.getId(), Utilities.formatDate(passStartTime, 'America/Chicago', 'MM/dd/yyyy HH:mm:ss'), response.getRespondentEmail(), formItemResponses[0].getResponse(), status, ''];
   return pass;
 }
 function onStartHallpassFormSubmit(event) {
-  var response = event.response;
-  var passStartTime = new Date(response.getTimestamp());
+  const response = event.response;
   const monitoringSheet = SpreadsheetApp.openById(monitoringSpreadsheetId).getSheets()[0];
   const encryptedSheet = SpreadsheetApp.openById(encryptedSpreadsheetId).getSheets()[0];
   const email = response.getRespondentEmail();
