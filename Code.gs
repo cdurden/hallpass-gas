@@ -197,10 +197,11 @@ function onStartHallpassFormSubmit(event) {
   const encryptedSheet = SpreadsheetApp.openById(encryptedSpreadsheetId).getSheets()[0];
   [monitoringSheet, encryptedSheet].forEach(clearMyRequestedPasses);
   var pass, encryptedPass;
+  pass = createPass(response, 'requested');
   if (passAllowed(pass)) {
-    pass = createPass(response, 'approved');
+    pass[4] = "approved";
   } else {
-    pass = createPass(response, 'denied');
+    pass[4] = "denied";
   }
   encryptedPass = encryptPass(pass);
   appendPassToSheet(monitoringSheet, pass);
