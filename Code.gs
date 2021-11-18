@@ -108,13 +108,10 @@ function getMostRecentActivePassRowNumber(data, email) {
   }
   return mostRecentRowNumber;
 }
-function getMyPassesFromToday(sheet, email, encrypted = false) {
+function getMyPassesFromToday(sheet, email) {
   const data = sheet.getDataRange().getValues();
   const nRows = data.length;
   const passes = [];
-  if (encrypted) {
-    email === sha256(email);
-  }
   // Get today's most recent active pass for this user
   for (var i = 1; i < nRows; i++) {
       var pass = data[i];
@@ -195,7 +192,9 @@ function onStartHallpassFormSubmit(event) {
   var passStartTime = new Date(response.getTimestamp());
   const monitoringSheet = SpreadsheetApp.openById(monitoringSpreadsheetId).getSheets()[0];
   const encryptedSheet = SpreadsheetApp.openById(encryptedSpreadsheetId).getSheets()[0];
-  [monitoringSheet, encryptedSheet].forEach(clearMyRequestedPasses);
+  const email = response.getRespondentEmail();
+  clearMyRequestedPasses(encryptedSheet, toHexString(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, email)));
+  clearMyRequestedPasses(monitoringSheet, email);
   var pass, encryptedPass;
   pass = createPass(response, 'requested');
   if (passAllowed(pass)) {
@@ -207,11 +206,11 @@ function onStartHallpassFormSubmit(event) {
   appendPassToSheet(monitoringSheet, pass);
   appendPassToSheet(encryptedSheet, encryptedPass);
 }
-function clearMyRequestedPasses(sheet) {
-  const myPassesFromToday = getMyPassesFromToday(sheet, response.getRespondentEmail(), true);
+function clearMyRequestedPasses(sheet, email) {
+  const myPassesFromToday = getMyPassesFromToday(sheet, email);
   const myRequestedPassesFromToday = myPassesFromToday.filter(function(pass) { return(pass[4] === "approved" || pass[4] === "denied");})
   myRequestedPassesFromToday.forEach(function(pass) {
-    pass[4] === "defunct";
+    pass[4] = "defunct";
     updatePass(pass, sheet);
   });
 }
