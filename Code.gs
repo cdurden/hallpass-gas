@@ -1,5 +1,7 @@
 const monitoringSpreadsheetId = "1iBh7bVtxBykPTX7SduUhkjVH3UmKYcLl9mD27MmDiwo";
 const encryptedSpreadsheetId = "1Uij5GC-HJB4wd8xMAgtxUe6QBSEkt_vsjCtuRHhok3M";
+const startHallpassFormId = "1UWpVPJMuxI59gPyVsyzk705nS3Cx1TybNy1za2ZJBCk";
+const endHallpassFormId = "1F0ON83xXhjq6r7CHFjfv8W_QO4uW0cuJVw60JD7_vh4";
 
 // pass[0]: form response id
 // pass[1]: start time
@@ -19,6 +21,8 @@ function doGet(e) {
   const t = HtmlService.createTemplateFromFile('Index')
   t.email = profile.getEmail(); // This is null if the 'email' scope is not present.
   t.encryptedSpreadsheetId = encryptedSpreadsheetId;
+  t.startHallpassFormId = startHallpassFormId;
+  t.endHallpassFormId = endHallpassFormId;
   t.hallpassAppUrl = ScriptApp.getService().getUrl();
   const output = t.evaluate();
   output.setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
