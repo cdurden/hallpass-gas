@@ -33,12 +33,9 @@ function doPost(e) {
   const profile = Session.getActiveUser();
   const t = HtmlService.createTemplateFromFile('Index')
   const email = profile.getEmail(); // This is null if the 'email' scope is not present.
-  if (e.parameter.action === 'acknowledge') {
-    const pass = getPassFromId(e.parameter.passId);
-    acknowledgePassStatus(pass);
-  }
   if (e.parameter.action === 'activate') {
-    const pass = getPassFromId(e.parameter.passId);
+    const monitoringSheet = SpreadsheetApp.openById(monitoringSpreadsheetId).getSheets()[0];
+    const pass = getPassFromId(e.parameter.passId, monitoringSheet);
     activatePass(pass);
   }
   t.email = email;
@@ -149,9 +146,16 @@ function getRowIndexFromId(id, sheet) {
   ids.forEach(function(row, i) { if (row[0] === id) { index = i; } });
   return index;
 }
-function updatePass(newPass, sheet) {
-  const rowIndex = getRowIndexFromId(newPass[0], sheet)
-  sheet.getRange(rowIndex+1, 1, 1, newPass.length).setValues([newPass]);
+function updatePassOnSheet(pass, sheet) {
+  const rowIndex = getRowIndexFromId(pass[0], sheet)
+  sheet.getRange(rowIndex+1, 1, 1, pass.length).setValues([pass]);
+}
+function updatePass(pass) {
+  const monitoringSheet = SpreadsheetApp.openById(monitoringSpreadsheetId).getSheets()[0];
+  const encryptedSheet = SpreadsheetApp.openById(encryptedSpreadsheetId).getSheets()[0];
+  updatePassOnSheet(pass, monitoringSheet);
+  const encryptedPass = encryptPass(pass);
+  updatePassOnSheet(encryptedPass, encryptedSheet);
 }
 function getPassFromId(id, sheet) {
   const rowIndex = getRowIndexFromId(id, sheet)
@@ -159,12 +163,11 @@ function getPassFromId(id, sheet) {
   return sheet.getRange(rowIndex+1, 1, 1, width).getValues()[0];
 }
 function endPass(pass, sheets) {
-  const newPass = [...pass];
   const now = Date.now();
   const start = new Date(myMostRecentPass[0]).getTime();
   const durationString = getDurationString(start, now);
-  newPass[3] = 'inactive';
-  sheets.forEach(function(sheet) { updatePass(newPass, sheet); });
+  pass[3] = 'inactive';
+  updatePass(pass);
 }
 function onEndHallpassFormSubmit(response) {
   const encryptedSheet = SpreadsheetApp.openById(encryptedSpreadsheetId).getSheets()[0];
@@ -212,14 +215,12 @@ function clearMyRequestedPasses(sheet, email) {
   const myRequestedPassesFromToday = myPassesFromToday.filter(function(pass) { return(pass[4] === "approved" || pass[4] === "denied");})
   myRequestedPassesFromToday.forEach(function(pass) {
     pass[4] = "defunct";
-    updatePass(pass, sheet);
+    updatePassOnSheet(pass, sheet);
   });
 }
 function activatePass(pass) {
   pass[4] = "active";
-  const monitoringSheet = SpreadsheetApp.openById(monitoringSpreadsheetId).getSheets()[0];
-  const encryptedSheet = SpreadsheetApp.openById(encryptedSpreadsheetId).getSheets()[0];
-  [monitoringSheet, encryptedSheet].forEach(function(sheet) { updatePass(pass, sheet); });
+  updatePass(pass);
 }
 function acknowledgePassStatus(pass) {
   const monitoringSheet = SpreadsheetApp.openById(monitoringSpreadsheetId).getSheets()[0];
