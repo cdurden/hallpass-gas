@@ -164,7 +164,7 @@ function getPassFromId(id, sheet) {
 }
 function endPass(pass) {
   const now = Date.now();
-  const start = new Date(myMostRecentPass[0]).getTime();
+  const start = new Date(pass[1]).getTime();
   const durationString = getDurationString(start, now);
   pass[3] = 'inactive';
   updatePass(pass);
