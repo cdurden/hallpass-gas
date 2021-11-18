@@ -51,6 +51,8 @@
       </div>
       <div class="modal-content" id="hallpassDenied">
         <h2>Your hall pass request has been denied.</h2>
+        <p id="deniedMessage">
+        </p>
         <p>
         <a id="reloadWindowLink" href="<?= hallpassAppUrl; ?>" target="_top">Click here</a> when you would like to try again.
         </p>
@@ -173,9 +175,6 @@
         for (var j = 0; j < nColumns; j++) {
           pass.push(passDataTable.getFormattedValue(i, j));
         }
-        console.log(pass[2]);
-        console.log(email);
-        console.log(sha256(email));
         if (pass[2] === sha256(email) && isToday(new Date(pass[1]))) {
           myPassesFromToday.push(pass);
         }
@@ -183,15 +182,12 @@
       return myPassesFromToday;
     }
     function getMostRecentPass(passes) {
-      console.log(passes);
       var mostRecentPass;
       for (var pass of passes) {
-        console.log(pass);
         if (pass[1] > mostRecentPass?.[1] || mostRecentPass === undefined) {
           mostRecentPass = pass;
         }
       }
-      console.log(mostRecentPass);
       return mostRecentPass;
     }
     function processPasses(queryResponse) {
@@ -201,26 +197,50 @@
       const passLimit = 2;
       updatePassInfo(myMostRecentActivePass, passesUsed, passLimit);
     }
-    function detectFormSubmission(action, detectFormSubmissionInterval) {
+    function detectEndHallpassFormSubmission(detectFormSubmissionInterval) {
       return function(queryResponse) {
         const myPassesFromToday = getMyPassesFromToday(queryResponse, <?= email ?>)
         const myMostRecentActivePass = getMostRecentPass(myPassesFromToday.filter(function(pass) { return pass[4]=== "active"; }));
-        const myMostRecentRequestedPass = getMostRecentPass(myPassesFromToday.filter(function(pass) { return (pass[4] === "approved" || pass[4] === "denied"); }));
-        if ((action === "end" && myMostRecentActivePass === undefined)) {
+        if (myMostRecentActivePass === undefined) {
           document.getElementById("reloadWindowModal").style.display = "block";
           document.getElementById("hallpassEnded").style.display = "block";
           document.getElementById("hallpassApproved").style.display = "none";
           document.getElementById("hallpassDenied").style.display = "none";
           clearInterval(detectFormSubmissionInterval);
-        } else if ((action === "start" && myMostRecentRequestedPass?.[4] === "approved")) {
+        }
+      }
+    }
+    function detectStartHallpassFormSubmission(detectFormSubmissionInterval) {
+      return function(queryResponse) {
+        const myPassesFromToday = getMyPassesFromToday(queryResponse, <?= email ?>)
+        const myMostRecentRequestedPass = getMostRecentPass(myPassesFromToday.filter(function(pass) { return (pass[4] === "approved" || pass[4] === "denied"); }));
+        console.log(myPassesFromToday);
+        console.log(myMostRecentRequestedPass);
+        console.log(myMostRecentRequestedPass?.[4]);
+        if (myMostRecentRequestedPass !== undefined) {
+          fetch(<?= hallpassAppUrl; ?>, {
+            method: 'POST', // *GET, POST, PUT, DELETE, etc.
+            mode: 'no-cors', // no-cors, *cors, same-origin
+            cache: 'no-cache', // *default, no-cache, reload, force-cache, only-if-cached
+            credentials: 'include', // include, *same-origin, omit
+            headers: {
+              'Content-Type': 'application/json'
+              // 'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            redirect: 'follow', // manual, *follow, error
+            referrerPolicy: 'no-referrer', // no-referrer, *no-referrer-when-downgrade, origin, origin-when-cross-origin, same-origin, strict-origin, strict-origin-when-cross-origin, unsafe-url
+            body: JSON.stringify({ action: "acknowledge", passId: myMostRecentRequestedPass[0] }) // body data type must match "Content-Type" header
+          }).then(function(response) { console.log(response.type); });
+        }
+        document.getElementById("hallpassEnded").style.display = "none";
+        if (myMostRecentRequestedPass?.[4] === "approved") {
           document.getElementById("reloadWindowModal").style.display = "block";
-          document.getElementById("hallpassEnded").style.display = "none";
           document.getElementById("hallpassApproved").style.display = "block";
           document.getElementById("hallpassDenied").style.display = "none";
           clearInterval(detectFormSubmissionInterval);
-        } else if ((action === "start" && myMostRecentRequestedPass?.[4] === "denied")) {
+        } else if (myMostRecentRequestedPass?.[4] === "denied") {
           document.getElementById("reloadWindowModal").style.display = "block";
-          document.getElementById("hallpassEnded").style.display = "none";
+          document.getElementById("deniedMessage").innerHTML = myMostRecentRequestedPass[5];
           document.getElementById("hallpassApproved").style.display = "none";
           document.getElementById("hallpassDenied").style.display = "block";
           clearInterval(detectFormSubmissionInterval);
@@ -232,7 +252,7 @@
       var url =
           "https://docs.google.com/spreadsheets/d/<?= encryptedSpreadsheetId ?>/edit#gid=0"
       var query = new google.visualization.Query(url);
-      query.setQuery("select A, B, C, D format A '2021-11-02 12:00:00'");
+      query.setQuery("select A, B, C, D, E, F format B '2021-11-02 12:00:00'");
       query.send(callback);
     }
     function init() {
@@ -249,7 +269,11 @@
         if (iframeLoads > 1) {
           document.body.scrollTop = document.documentElement.scrollTop = 0;
           var detectFormSubmissionInterval = setInterval(function() {
-            getPasses(detectFormSubmission(action, detectFormSubmissionInterval));
+            if (action === "start") {
+              getPasses(detectStartHallpassFormSubmission(detectFormSubmissionInterval));
+            } else if (action === "end") {
+              getPasses(detectEndHallpassFormSubmission(detectFormSubmissionInterval));
+            }
           }, 1000);
         }
       };

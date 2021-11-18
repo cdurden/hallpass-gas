@@ -1,13 +1,14 @@
 const monitoringSpreadsheetId = "1iBh7bVtxBykPTX7SduUhkjVH3UmKYcLl9mD27MmDiwo";
 const encryptedSpreadsheetId = "1Uij5GC-HJB4wd8xMAgtxUe6QBSEkt_vsjCtuRHhok3M";
-const startHallpassFormId = "1UWpVPJMuxI59gPyVsyzk705nS3Cx1TybNy1za2ZJBCk";
-const endHallpassFormId = "1F0ON83xXhjq6r7CHFjfv8W_QO4uW0cuJVw60JD7_vh4";
+const startHallpassFormId = "1FAIpQLSdbm5Yv6uqOvnqQ2lhyerIyFeTXGROZZ_uE7_vk885UqZ5pUA";
+const endHallpassFormId = "1FAIpQLSer2ZxezicVRZ8fe4JkjxJGlj4DapTcZZhMdu8RZezInqBM1g";
 
 // pass[0]: form response id
 // pass[1]: start time
 // pass[2]: email
 // pass[3]: destination
 // pass[4]: status
+// pass[5]: message
 
 // formItemResponses[0]: destination
 
@@ -32,6 +33,10 @@ function doPost(e) {
   const profile = Session.getActiveUser();
   const t = HtmlService.createTemplateFromFile('Index')
   const email = profile.getEmail(); // This is null if the 'email' scope is not present.
+  if (e.parameter.action === 'acknowledge') {
+    const pass = getPassFromId(e.parameter.passId);
+    acknowledgePassStatus(pass);
+  }
   if (e.parameter.action === 'activate') {
     const pass = getPassFromId(e.parameter.passId);
     activatePass(pass);
@@ -79,14 +84,16 @@ function passAllowed(pass) {
   }
   const periodStartTimes = [[8,40],[9,21],[10,2],[10,43],[11,24],[11,55],[12,26],[12,57],[1,38],[2,19]].map(getDatetime);
   const periodEndTimes = [[9,20],[10,1],[10,42],[11,23],[11,54],[12,25],[12,56],[1,37],[2,18],[2,59]].map(getDatetime);
-  return !(
+  if (
     any(periodStartTimes.map(function(periodStartTime){
       return (passStartTime - periodStartTime) > 0 && (passStartTime - periodStartTime) < delta;
     })) ||
     any(periodEndTimes.map(function(periodEndTime){
       return (periodEndTime - passStartTime) > 0 && (periodEndTime - passStartTime) < delta;
-    }))
-  );
+    }))) {
+      pass[5] = "You may not start a pass during the first or last 10 minutes of a class period.";
+      return false;
+    }
 }
 function getMostRecentActivePassRowNumber(data, email) {
   var mostRecentRow;
@@ -188,6 +195,7 @@ function onStartHallpassFormSubmit(event) {
   var passStartTime = new Date(response.getTimestamp());
   const monitoringSheet = SpreadsheetApp.openById(monitoringSpreadsheetId).getSheets()[0];
   const encryptedSheet = SpreadsheetApp.openById(encryptedSpreadsheetId).getSheets()[0];
+  [monitoringSheet, encryptedSheet].forEach(clearMyRequestedPasses);
   var pass, encryptedPass;
   if (passAllowed(pass)) {
     pass = createPass(response, 'approved');
@@ -198,9 +206,27 @@ function onStartHallpassFormSubmit(event) {
   appendPassToSheet(monitoringSheet, pass);
   appendPassToSheet(encryptedSheet, encryptedPass);
 }
-function activateHallpass(pass) {
+function clearMyRequestedPasses(sheet) {
+  const myPassesFromToday = getMyPassesFromToday(sheet, response.getRespondentEmail(), true);
+  const myRequestedPassesFromToday = myPassesFromToday.filter(function(pass) { return(pass[4] === "approved" || pass[4] === "denied");})
+  myRequestedPassesFromToday.forEach(function(pass) {
+    pass[4] === "defunct";
+    updatePass(pass, sheet);
+  });
+}
+function activatePass(pass) {
   pass[4] = "active";
   const monitoringSheet = SpreadsheetApp.openById(monitoringSpreadsheetId).getSheets()[0];
   const encryptedSheet = SpreadsheetApp.openById(encryptedSpreadsheetId).getSheets()[0];
+  [monitoringSheet, encryptedSheet].forEach(function(sheet) { updatePass(pass, sheet); });
+}
+function acknowledgePassStatus(pass) {
+  const monitoringSheet = SpreadsheetApp.openById(monitoringSpreadsheetId).getSheets()[0];
+  const encryptedSheet = SpreadsheetApp.openById(encryptedSpreadsheetId).getSheets()[0];
+  if (pass[4] === "denied") {
+    pass[4] === "defunct";
+  } else if (pass[4] === "approved") {
+    pass[4] === "unactivated";
+  }
   [monitoringSheet, encryptedSheet].forEach(function(sheet) { updatePass(pass, sheet); });
 }
