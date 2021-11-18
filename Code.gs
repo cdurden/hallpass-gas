@@ -166,7 +166,7 @@ function endPass(pass) {
   const now = Date.now();
   const start = new Date(pass[1]).getTime();
   const durationString = getDurationString(start, now);
-  pass[3] = 'inactive';
+  pass[4] = 'inactive';
   updatePass(pass);
 }
 function onEndHallpassFormSubmit(event) {
