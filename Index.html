@@ -47,7 +47,7 @@
           <form action="<?= hallpassAppUrl; ?>" method="POST" id="activatePassForm">
             <input type="hidden" name="passId" id="hallpassIdInput">
             <input type="hidden" name="action" value="activate">
-            <a id="activatePassLink" onclick="document.getElementById('activatePassForm').submit();" target="_top">Click here</a> to see the activate your pass.
+            <a href="#" id="activatePassLink" onclick="document.getElementById('activatePassForm').submit(); event.preventDefault();" target="_top">Click here</a> to see the activate your pass.
           </form>
         </p>
       </div>
