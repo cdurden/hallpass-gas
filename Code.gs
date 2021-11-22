@@ -39,12 +39,13 @@ function doPost(e) {
     if (pass !== undefined) {
       activatePass(pass);
     }
-  }
-  if (e.parameter.action === 'clearStalePasses') {
+  } else if (JSON.parse(e.postData.contents).action === 'clearStalePasses') {
+    console.error("Clearing stale passes.");
     const monitoringSheet = SpreadsheetApp.openById(monitoringSpreadsheetId).getSheets()[0];
     const encryptedSheet = SpreadsheetApp.openById(encryptedSpreadsheetId).getSheets()[0];
     clearMyRequestedPasses(encryptedSheet, toHexString(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, email)));
     clearMyRequestedPasses(monitoringSheet, email);
+    throw("Cleared stale passes.")
   }
   t.email = email;
   t.encryptedSpreadsheetId = encryptedSpreadsheetId;
@@ -82,25 +83,29 @@ function padWholeNumber(num, size) {
 function passAllowed(pass) {
   const passStartTime = new Date(pass[1]);
   const oneMinute = 60000;
-  const delta = 1*oneMinute;
+  const minuteRestriction = 1;
+  const delta = minuteRestriction*oneMinute;
   function getDatetime([hours, mins]) {
     const datetime = new Date();
     datetime.setHours(hours, mins);
     return datetime;
   }
-  const periodStartTimes = [[8,40],[9,21],[10,2],[10,43],[11,24],[11,55],[12,26],[12,57],[13,38],[14,19],[15,18],[15,22],[15,26],[15,30]].map(getDatetime);
-  const periodEndTimes = [[9,20],[10,1],[10,42],[11,23],[11,54],[12,25],[12,56],[13,37],[14,18],[14,59],[15,20],[15,24],[15,28],[15,32]].map(getDatetime);
-  if (
-    any(periodStartTimes.map(function(periodStartTime){
+  //const periodStartTimes = [[8,40],[9,21],[10,2],[10,43],[11,24],[11,55],[12,26],[12,57],[13,38],[14,19]].map(getDatetime);
+  //const periodEndTimes = [[9,20],[10,1],[10,42],[11,23],[11,54],[12,25],[12,56],[13,37],[14,18],[14,59]].map(getDatetime);
+  const cartesian = (...a) => a.reduce((a, b) => a.flatMap(d => b.map(e => [d, e].flat())));
+  const periodStartTimes = cartesian(Array(24).fill().map(function(elmt, index) { return index; }), Array(20).fill().map(function(elmt, index) { return index*3+1; })).map(getDatetime);
+  const periodEndTimes = cartesian(Array(24).fill().map(function(elmt, index) { return index; }), Array(20).fill().map(function(elmt, index) { return index*3; })).map(getDatetime);
+  if (true ||
+    any(periodStartTimes.map(function(periodStartTime) {
       return (periodStartTime - passStartTime) > 0 && (periodStartTime - passStartTime) < oneMinute; // The pass start time is within one minute of the period start time.
     })) ||
-    any(periodStartTimes.map(function(periodStartTime){
+    any(periodStartTimes.map(function(periodStartTime) {
       return (passStartTime - periodStartTime) > 0 && (passStartTime - periodStartTime) < delta;
     })) ||
-    any(periodEndTimes.map(function(periodEndTime){
+    any(periodEndTimes.map(function(periodEndTime) {
       return (periodEndTime - passStartTime) > 0 && (periodEndTime - passStartTime) < delta;
     }))) {
-      pass[5] = "You may not start a pass during the first or last 10 minutes of a class period.";
+      pass[5] = `You may not start a pass during the first or last ${minuteRestriction} minutes of a class period.`;
       return false;
   }
   return true

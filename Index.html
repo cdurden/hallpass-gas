@@ -47,7 +47,7 @@
           <form action="<?= hallpassAppUrl; ?>" method="POST" id="activatePassForm">
             <input type="hidden" name="passId" id="hallpassIdInput">
             <input type="hidden" name="action" value="activate">
-            <a href="#" id="activatePassLink" onclick="document.getElementById('activatePassForm').submit(); event.preventDefault();" target="_top">Click here</a> to see the activate your pass.
+            <a href="#" id="activatePassLink" onclick="document.getElementById('activatePassForm').submit(); event.preventDefault();" target="_top">Click here</a> to activate your pass.
           </form>
         </p>
       </div>
@@ -201,6 +201,7 @@
       updatePassInfo(myMostRecentActivePass, passesUsed, passLimit);
     }
     function clearStalePasses() {
+      console.log("Clearing stale passes.");
       return fetch(<?= hallpassAppUrl; ?>, {
         method: 'POST', // *GET, POST, PUT, DELETE, etc.
         mode: 'no-cors', // no-cors, *cors, same-origin
