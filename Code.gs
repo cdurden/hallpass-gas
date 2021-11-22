@@ -49,11 +49,11 @@ function doPost(e) {
 function toHexString(signature) {
   return signature
     .map(function(byte) {
-        // Convert from 2's compliment
-        var v = (byte < 0) ? 256 + byte : byte;
+      // Convert from 2's compliment
+      var v = (byte < 0) ? 256 + byte : byte;
 
-        // Convert byte to hexadecimal
-        return ("0" + v.toString(16)).slice(-2);
+      // Convert byte to hexadecimal
+      return ("0" + v.toString(16)).slice(-2);
     })
     .join("");
 }
@@ -73,15 +73,19 @@ function padWholeNumber(num, size) {
 }
 function passAllowed(pass) {
   const passStartTime = new Date(pass[1]);
-  const delta = 600000;
+  const oneMinute = 60000;
+  const delta = 1*oneMinute;
   function getDatetime([hours, mins]) {
     const datetime = new Date();
     datetime.setHours(hours, mins);
     return datetime;
   }
-  const periodStartTimes = [[8,40],[9,21],[10,2],[10,43],[11,24],[11,55],[12,26],[12,57],[1,38],[2,19]].map(getDatetime);
-  const periodEndTimes = [[9,20],[10,1],[10,42],[11,23],[11,54],[12,25],[12,56],[1,37],[2,18],[2,59]].map(getDatetime);
+  const periodStartTimes = [[8,40],[9,21],[10,2],[10,43],[11,24],[11,55],[12,26],[12,57],[13,38],[14,19],[15,18],[15,22],[15,26],[15,30]].map(getDatetime);
+  const periodEndTimes = [[9,20],[10,1],[10,42],[11,23],[11,54],[12,25],[12,56],[13,37],[14,18],[14,59],[15,20],[15,24],[15,28],[15,32]].map(getDatetime);
   if (
+    any(periodStartTimes.map(function(periodStartTime){
+      return (periodStartTime - passStartTime) > 0 && (periodStartTime - passStartTime) < oneMinute; // The pass start time is within one minute of the period start time.
+    })) ||
     any(periodStartTimes.map(function(periodStartTime){
       return (passStartTime - periodStartTime) > 0 && (passStartTime - periodStartTime) < delta;
     })) ||

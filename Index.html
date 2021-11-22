@@ -47,7 +47,7 @@
           <form action="<?= hallpassAppUrl; ?>" method="POST" id="activatePassForm">
             <input type="hidden" name="passId" id="hallpassIdInput">
             <input type="hidden" name="action" value="activate">
-            <a href="#" id="activatePassLink" onclick="document.getElementById('activatePassForm').submit(); event.preventDefault();" target="_top">Click here</a> to see the activate your pass.
+            <a id="activatePassLink" onclick="document.getElementById('activatePassForm').submit();" target="_top">Click here</a> to see the activate your pass.
           </form>
         </p>
       </div>
@@ -55,8 +55,10 @@
         <h2>Your hall pass request has been denied.</h2>
         <p id="deniedMessage">
         </p>
+        <p id="requestedPassTime">
+        </p>
         <p>
-        <a id="reloadWindowLink" href="<?= hallpassAppUrl; ?>" target="_top">Click here</a> when you would like to try again.
+          <a id="reloadWindowLink" href="<?= hallpassAppUrl; ?>" target="_top">Click here</a> when you would like to try again.
         </p>
       </div>
       <div class="modal-content" id="hallpassEnded">
@@ -246,6 +248,7 @@
           clearInterval(detectFormSubmissionInterval);
         } else if (myMostRecentRequestedPass?.[4] === "denied") {
           document.getElementById("reloadWindowModal").style.display = "block";
+          document.getElementById("requestedPassTime").innerHTML = myMostRecentRequestedPass[1];
           document.getElementById("deniedMessage").innerHTML = myMostRecentRequestedPass[5];
           document.getElementById("hallpassApproved").style.display = "none";
           document.getElementById("hallpassDenied").style.display = "block";
