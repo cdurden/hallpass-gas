@@ -36,7 +36,15 @@ function doPost(e) {
   if (e.parameter.action === 'activate') {
     const monitoringSheet = SpreadsheetApp.openById(monitoringSpreadsheetId).getSheets()[0];
     const pass = getPassFromId(e.parameter.passId, monitoringSheet);
-    activatePass(pass);
+    if (pass !== undefined) {
+      activatePass(pass);
+    }
+  }
+  if (e.parameter.action === 'clearStalePasses') {
+    const monitoringSheet = SpreadsheetApp.openById(monitoringSpreadsheetId).getSheets()[0];
+    const encryptedSheet = SpreadsheetApp.openById(encryptedSpreadsheetId).getSheets()[0];
+    clearMyRequestedPasses(encryptedSheet, toHexString(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, email)));
+    clearMyRequestedPasses(monitoringSheet, email);
   }
   t.email = email;
   t.encryptedSpreadsheetId = encryptedSpreadsheetId;
@@ -161,9 +169,12 @@ function updatePass(pass) {
   updatePassOnSheet(encryptedPass, encryptedSheet);
 }
 function getPassFromId(id, sheet) {
-  const rowIndex = getRowIndexFromId(id, sheet)
+  console.error(id);
+  const rowIndex = getRowIndexFromId(id, sheet);
   const width = sheet.getDataRange().getWidth();
-  return sheet.getRange(rowIndex+1, 1, 1, width).getValues()[0];
+  if (rowIndex !== undefined) {
+    return sheet.getRange(rowIndex+1, 1, 1, width).getValues()[0];
+  }
 }
 function endPass(pass) {
   const now = Date.now();
@@ -226,6 +237,7 @@ function activatePass(pass) {
   pass[4] = "active";
   updatePass(pass);
 }
+/*
 function acknowledgePassStatus(pass) {
   const monitoringSheet = SpreadsheetApp.openById(monitoringSpreadsheetId).getSheets()[0];
   const encryptedSheet = SpreadsheetApp.openById(encryptedSpreadsheetId).getSheets()[0];
@@ -236,3 +248,4 @@ function acknowledgePassStatus(pass) {
   }
   [monitoringSheet, encryptedSheet].forEach(function(sheet) { updatePass(pass, sheet); });
 }
+*/

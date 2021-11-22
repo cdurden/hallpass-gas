@@ -47,7 +47,7 @@
           <form action="<?= hallpassAppUrl; ?>" method="POST" id="activatePassForm">
             <input type="hidden" name="passId" id="hallpassIdInput">
             <input type="hidden" name="action" value="activate">
-            <a id="activatePassLink" onclick="document.getElementById('activatePassForm').submit();" target="_top">Click here</a> to see the activate your pass.
+            <a href="#" id="activatePassLink" onclick="document.getElementById('activatePassForm').submit(); event.preventDefault();" target="_top">Click here</a> to see the activate your pass.
           </form>
         </p>
       </div>
@@ -55,10 +55,9 @@
         <h2>Your hall pass request has been denied.</h2>
         <p id="deniedMessage">
         </p>
-        <p id="requestedPassTime">
-        </p>
+        <p>Pass was requested at <span id="requestedPassTime"></span>.</p>
         <p>
-          <a id="reloadWindowLink" href="<?= hallpassAppUrl; ?>" target="_top">Click here</a> when you would like to try again.
+        <a id="reloadWindowLink" href="<?= hallpassAppUrl; ?>" target="_top">Click here</a> when you would like to try again.
         </p>
       </div>
       <div class="modal-content" id="hallpassEnded">
@@ -201,26 +200,20 @@
       const passLimit = 2;
       updatePassInfo(myMostRecentActivePass, passesUsed, passLimit);
     }
-    function clearStalePasses(queryResponse) {
-      const myPassesFromToday = getMyPassesFromToday(queryResponse, <?= email ?>)
-      const myMostRecentRequestedPass = getMostRecentPass(myPassesFromToday.filter(function(pass) { return (pass[4] === "approved" || pass[4] === "denied"); }));
-      if (myMostRecentRequestedPass !== undefined) {
-        return fetch(<?= hallpassAppUrl; ?>, {
-          method: 'POST', // *GET, POST, PUT, DELETE, etc.
-          mode: 'no-cors', // no-cors, *cors, same-origin
-          cache: 'no-cache', // *default, no-cache, reload, force-cache, only-if-cached
-          credentials: 'include', // include, *same-origin, omit
-          headers: {
-            'Content-Type': 'application/json'
-            // 'Content-Type': 'application/x-www-form-urlencoded',
-          },
-          redirect: 'follow', // manual, *follow, error
-          referrerPolicy: 'no-referrer', // no-referrer, *no-referrer-when-downgrade, origin, origin-when-cross-origin, same-origin, strict-origin, strict-origin-when-cross-origin, unsafe-url
-          body: JSON.stringify({ action: "acknowledge", passId: myMostRecentRequestedPass[0] }) // body data type must match "Content-Type" header
-        });
-      } else {
-        return new Promise.resolve();
-      }
+    function clearStalePasses() {
+      return fetch(<?= hallpassAppUrl; ?>, {
+        method: 'POST', // *GET, POST, PUT, DELETE, etc.
+        mode: 'no-cors', // no-cors, *cors, same-origin
+        cache: 'no-cache', // *default, no-cache, reload, force-cache, only-if-cached
+        credentials: 'include', // include, *same-origin, omit
+        headers: {
+          'Content-Type': 'application/json'
+          // 'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        redirect: 'follow', // manual, *follow, error
+        referrerPolicy: 'no-referrer', // no-referrer, *no-referrer-when-downgrade, origin, origin-when-cross-origin, same-origin, strict-origin, strict-origin-when-cross-origin, unsafe-url
+        body: JSON.stringify({ action: "clearStalePasses" }) // body data type must match "Content-Type" header
+      });
     }
     function detectEndHallpassFormSubmission(detectFormSubmissionInterval) {
       return function(queryResponse) {
@@ -248,8 +241,8 @@
           clearInterval(detectFormSubmissionInterval);
         } else if (myMostRecentRequestedPass?.[4] === "denied") {
           document.getElementById("reloadWindowModal").style.display = "block";
-          document.getElementById("requestedPassTime").innerHTML = myMostRecentRequestedPass[1];
           document.getElementById("deniedMessage").innerHTML = myMostRecentRequestedPass[5];
+          document.getElementById("requestedPassTime").innerHTML = myMostRecentRequestedPass[1];
           document.getElementById("hallpassApproved").style.display = "none";
           document.getElementById("hallpassDenied").style.display = "block";
           clearInterval(detectFormSubmissionInterval);
@@ -265,7 +258,10 @@
       query.send(callback);
     }
     function init() {
-      getPasses(processPasses);
+      clearStalePasses().then(function() {
+        getPasses(processPasses);
+      });
+      //getPasses(processPasses);
     }
     var startHallpassForm = document.getElementById("startHallpassForm");
     var endHallpassForm = document.getElementById("endHallpassForm");
@@ -279,11 +275,14 @@
           document.body.scrollTop = document.documentElement.scrollTop = 0;
           var detectFormSubmissionInterval = setInterval(function() {
             if (action === "start") {
+              getPasses(detectStartHallpassFormSubmission(detectFormSubmissionInterval));
+              /*
               getPasses(function(queryResponse) {
                 clearStalePasses(queryResponse).then(function() {
                   getPasses(detectStartHallpassFormSubmission(detectFormSubmissionInterval));
                 });
               });
+              */
             } else if (action === "end") {
               getPasses(detectEndHallpassFormSubmission(detectFormSubmissionInterval));
             }
