@@ -197,7 +197,7 @@
       const myPassesFromToday = getMyPassesFromToday(queryResponse, <?= email ?>)
       const myMostRecentActivePass = getMostRecentPass(myPassesFromToday.filter(function(pass) { return pass[4] === "active"; }));
       const passesUsed = myPassesFromToday.filter(function(pass) { return (pass[4] === "active" || pass[4] === "inactive"); }).length;
-      const passLimit = 2;
+      const passLimit = 100;
       updatePassInfo(myMostRecentActivePass, passesUsed, passLimit);
     }
     function clearStalePasses() {
