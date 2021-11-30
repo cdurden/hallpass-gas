@@ -50,6 +50,9 @@
             <a href="#" id="activatePassLink" onclick="document.getElementById('activatePassForm').submit(); event.preventDefault();" target="_top">Click here</a> to activate your pass.
           </form>
         </p>
+        <p>
+          Your pass request will expire if it is not activated within <span id="expiresAfterTime">60</span> seconds.
+        </p>
       </div>
       <div class="modal-content" id="hallpassDenied">
         <h2>Your hall pass request has been denied.</h2>
@@ -245,6 +248,18 @@
           document.getElementById("hallpassApproved").style.display = "block";
           document.getElementById("hallpassIdInput").value = myMostRecentRequestedPass[0];
           document.getElementById("hallpassDenied").style.display = "none";
+          // Hide the modal with the activation form after 60 seconds
+          const expirationInterval = setInterval(function() {
+            var expiresAfterTime = 60;
+            return function() {
+              expiresAfterTime -= 1;
+              if (expiresAfterTime < 1) {
+                document.getElementById("reloadWindowModal").style.display = "none";
+                clearInterval(expirationInterval);
+              }
+              document.getElementById("expiresAfterTime").innerHTML = expiresAfterTime;
+            }
+          }(), 1000);
           clearInterval(detectFormSubmissionInterval);
         } else if (myMostRecentRequestedPass?.[4] === "denied") {
           document.getElementById("reloadWindowModal").style.display = "block";
