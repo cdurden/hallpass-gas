@@ -122,7 +122,7 @@
       document.getElementById("noActivePass").style.display = "none";
       document.getElementById("activePassInfo").style.display = "block";
       var start = new Date(activePass[1]);
-      document.getElementById("activePassStartTime").innerHTML = activePass[1];
+      document.getElementById("activePassStartTime").innerHTML = formatTime(new Date(activePass[1]));
       updateActivePassDurationInterval = setInterval(function() {
           var now = Date.now();
           var seconds = Math.floor((now - start.getTime())/1000);
@@ -159,6 +159,12 @@
       return someDate.getDate() == today.getDate() &&
         someDate.getMonth() == today.getMonth() &&
         someDate.getFullYear() == today.getFullYear();
+    }
+    function formatTime(date) {
+      const hours = date.getHours() % 12;
+      const mins = date.getMinutes();
+      const ampm = date.getHours() >= 12 ? 'pm' : 'am';
+      return `${hours}:${mins} ${ampm}`;
     }
     function getMyPassesFromToday(queryResponse, email) {
       const passDataTable = queryResponse.getDataTable();
@@ -243,7 +249,7 @@
         } else if (myMostRecentRequestedPass?.[4] === "denied") {
           document.getElementById("reloadWindowModal").style.display = "block";
           document.getElementById("deniedMessage").innerHTML = myMostRecentRequestedPass[5];
-          document.getElementById("requestedPassTime").innerHTML = myMostRecentRequestedPass[1];
+          document.getElementById("requestedPassTime").innerHTML = formatTime(new Date(myMostRecentRequestedPass[1]));
           document.getElementById("hallpassApproved").style.display = "none";
           document.getElementById("hallpassDenied").style.display = "block";
           clearInterval(detectFormSubmissionInterval);
