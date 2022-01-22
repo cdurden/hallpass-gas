@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <script src='https://cdn.jsdelivr.net/npm/js-sha256@0.9.0/src/sha256.min.js'></script>
+    <style>
+      body {
+        font-size: 18pt;
+        text-align: center;
+        margin: 0 5vw 0 5vw;
+      }
+      /* The Modal (background) */
+      .modal {
+        display: none; /* Hidden by default */
+        position: fixed; /* Stay in place */
+        z-index: 1; /* Sit on top */
+        left: 0;
+        top: 0;
+        width: 100%; /* Full width */
+        height: 100%; /* Full height */
+        overflow: auto; /* Enable scroll if needed */
+        background-color: rgb(0,0,0); /* Fallback color */
+        background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+      }
+
+      /* Modal Content/Box */
+      .modal-content {
+        background-color: #fefefe;
+        margin: 15% auto; /* 15% from the top and centered */
+        padding: 20px;
+        border: 1px solid #888;
+        width: 80%; /* Could be more or less, depending on screen size */
+      }
+    </style>
+  </head>
+
+  <body>
+    <p>
+      <b>You are logged in as:</b> <?= email; ?>
+    </p>
+
+    <!-- Displayed when the user has submitted either the start or the end form -->
+    <div class="modal" id="reloadWindowModal">
+      <div class="modal-content" id="hallpassApproved">
+        <h2>Your hall pass request has been approved.</h2>
+        <p>
+          <form action="<?= hallpassAppUrl; ?>" method="POST" id="activatePassForm">
+            <input type="hidden" name="passId" id="hallpassIdInput">
+            <input type="hidden" name="action" value="activate">
+            <a href="#" id="activatePassLink" onclick="document.getElementById('activatePassForm').submit(); event.preventDefault();" target="_top">Click here</a> to activate your pass.
+          </form>
+        </p>
+        <p>
+          Your pass request will expire if it is not activated within <span id="expiresAfterTime">60</span> seconds.
+        </p>
+      </div>
+      <div class="modal-content" id="hallpassDenied">
+        <h2>Your hall pass request has been denied.</h2>
+        <p id="deniedMessage">
+        </p>
+        <p>Pass was requested at <span id="requestedPassTime"></span>.</p>
+        <p>
+        <a id="reloadWindowLink" href="<?= hallpassAppUrl; ?>" target="_top">Click here</a> when you would like to try again.
+        </p>
+      </div>
+      <div class="modal-content" id="hallpassEnded">
+        <h2>You have ended your hall pass.</h2>
+        <p>
+        You may return to this page later or <a id="reloadWindowLink" href="<?= hallpassAppUrl; ?>" target="_top">click here</a> to request another hall pass.
+        </p>
+      </div>
+    </div>
+    
+    <!-- Displayed when the user has an active pass with today's date -->
+    <div style="display: none; clear: both;" id="activePassInfo">
+      <p>You currently have an active pass</p>
+      <p>Active since <span id="activePassStartTime"></span>. Duration: <b><span id="activePassDuration"></span></b></p>
+      <p>If you are out of class for more than 10 minutes you will be marked absent.</p>
+    </div>
+
+    <p>
+    <!-- Displayed when the user has no active pass with today's date -->
+    <span style="display: none; clear: both;" id="noActivePass">
+      You do not currently have an active pass.
+    </span>
+
+    <!-- The following is always displayed -->
+    <div style="display: none; clear: both;" id="passesUsedInfo">
+      <p>You have used <span id="passesUsed"></span> out of <span id="passLimit"></span> passes today.</p>
+    </div>
+
+    <!-- Displayed if the user has used fewer passes than the pass limit and there is no active pass with today's date -->    
+    <span style="display: none; clear: both;" id="passAvailable">
+      You may create a pass by completing the form below.
+    </span>
+    </p>
+
+    <!-- Displayed if the user has used fewer passes than the pass limit and there is no active pass with today's date -->
+    
+    <iframe
+      style="width: 100%; height: 50em; display: none;"
+      id="startHallpassForm"
+      src="https://docs.google.com/forms/d/e/<?= startHallpassFormId ?>/viewform?embedded=true"
+      frameborder="0" marginheight="0" marginwidth="0">Loading…</iframe>
+
+    <!-- Displayed if the user has an active pass with today's date --> 
+    <iframe
+      style="width: 100%; height: 50em; display: none;"
+      id="endHallpassForm"
+      src="https://docs.google.com/forms/d/e/<?= endHallpassFormId ?>/viewform?embedded=true"
+      frameborder="0" marginheight="0" marginwidth="0">Loading…</iframe>
+  </body>
+
+  <script>
+    var email;
+    var activePassInterval;
+    google.charts.load("current");
+    google.charts.setOnLoadCallback(init);
+    function pad(num, size) {
+        num = num.toString();
+        while (num.length < size) num = "0" + num;
+        return num;
+    }
+    function showActivePassInfo(activePass) {
+      document.getElementById("noActivePass").style.display = "none";
+      document.getElementById("activePassInfo").style.display = "block";
+      var start = new Date(activePass[1]);
+      document.getElementById("activePassStartTime").innerHTML = formatTime(new Date(activePass[1]));
+      updateActivePassDurationInterval = setInterval(function() {
+          var now = Date.now();
+          var seconds = Math.floor((now - start.getTime())/1000);
+          var min = Math.floor(seconds/60);
+          var hour = Math.floor(min/60);
+          document.getElementById("activePassDuration").innerHTML = `${pad(hour,2)}:${pad(min - hour*60,2)}:${pad(seconds - min*60,2)}`;
+      }, 1000);
+    }
+    function updatePassInfo (myMostRecentActivePass, passesUsed, passLimit) {
+      // Update user interface elements in the DOM
+      document.getElementById("passesUsed").innerHTML = passesUsed;
+      document.getElementById("passLimit").innerHTML = passLimit;
+      document.getElementById("passesUsedInfo").style.display = "block";
+      if (passesUsed < passLimit) {
+        document.getElementById("startHallpassForm").style.display = "block";
+        document.getElementById("passAvailable").style.display = "block";
+      } else {
+        document.getElementById("startHallpassForm").style.display = "none";
+        document.getElementById("passAvailable").style.display = "none";
+      }
+      if (myMostRecentActivePass !== undefined) {
+        document.getElementById("startHallpassForm").style.display = "none";
+        document.getElementById("passAvailable").style.display = "none";
+        document.getElementById("endHallpassForm").style.display = "block";
+        showActivePassInfo(myMostRecentActivePass);
+      } else {
+        document.getElementById("endHallpassForm").style.display = "none";
+        document.getElementById("activePassInfo").style.display = "none";
+        document.getElementById("noActivePass").style.display = "block";
+      }
+    }
+    function isToday(someDate) {
+      const today = new Date();
+      return someDate.getDate() == today.getDate() &&
+        someDate.getMonth() == today.getMonth() &&
+        someDate.getFullYear() == today.getFullYear();
+    }
+    function formatTime(date) {
+      const hours = date.getHours() % 12;
+      const mins = date.getMinutes();
+      const ampm = date.getHours() >= 12 ? 'pm' : 'am';
+      return `${hours}:${mins} ${ampm}`;
+    }
+    function getMyPassesFromToday(queryResponse, email) {
+      const passDataTable = queryResponse.getDataTable();
+      const nColumns = passDataTable.getNumberOfColumns();
+      const nRows = passDataTable.getNumberOfRows();
+      const myPassesFromToday = [];
+      // Create date formatter and apply to data table column index 0
+      const formatDate = new google.visualization.DateFormat({
+          pattern: 'MM/dd/YYYY HH:mm:ss',
+          timeZone: -6
+      });
+      passDataTable.setColumnProperty(0, "type", "datetime");
+      formatDate.format(passDataTable, 0);
+      var pass;
+      for (var i = 0; i < nRows; i++) {
+        pass = [];
+        for (var j = 0; j < nColumns; j++) {
+          pass.push(passDataTable.getFormattedValue(i, j));
+        }
+        if (pass[2] === sha256(email) && isToday(new Date(pass[1]))) {
+          myPassesFromToday.push(pass);
+        }
+      }
+      return myPassesFromToday;
+    }
+    function getMostRecentPass(passes) {
+      var mostRecentPass;
+      for (var pass of passes) {
+        if (pass[1] > mostRecentPass?.[1] || mostRecentPass === undefined) {
+          mostRecentPass = pass;
+        }
+      }
+      return mostRecentPass;
+    }
+    function processPasses(queryResponse) {
+      const myPassesFromToday = getMyPassesFromToday(queryResponse, <?= email ?>)
+      const myMostRecentActivePass = getMostRecentPass(myPassesFromToday.filter(function(pass) { return pass[4] === "active"; }));
+      const passesUsed = myPassesFromToday.filter(function(pass) { return (pass[4] === "active" || pass[4] === "inactive"); }).length;
+      const passLimit = 100;
+      updatePassInfo(myMostRecentActivePass, passesUsed, passLimit);
+    }
+    function clearStalePasses() {
+      console.log("Clearing stale passes.");
+      return fetch(<?= hallpassAppUrl; ?>, {
+        method: 'POST', // *GET, POST, PUT, DELETE, etc.
+        mode: 'no-cors', // no-cors, *cors, same-origin
+        cache: 'no-cache', // *default, no-cache, reload, force-cache, only-if-cached
+        credentials: 'include', // include, *same-origin, omit
+        headers: {
+          'Content-Type': 'application/json'
+          // 'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        redirect: 'follow', // manual, *follow, error
+        referrerPolicy: 'no-referrer', // no-referrer, *no-referrer-when-downgrade, origin, origin-when-cross-origin, same-origin, strict-origin, strict-origin-when-cross-origin, unsafe-url
+        body: JSON.stringify({ action: "clearStalePasses" }) // body data type must match "Content-Type" header
+      });
+    }
+    function detectEndHallpassFormSubmission(detectFormSubmissionInterval) {
+      return function(queryResponse) {
+        const myPassesFromToday = getMyPassesFromToday(queryResponse, <?= email ?>)
+        const myMostRecentActivePass = getMostRecentPass(myPassesFromToday.filter(function(pass) { return pass[4]=== "active"; }));
+        if (myMostRecentActivePass === undefined) {
+          document.getElementById("reloadWindowModal").style.display = "block";
+          document.getElementById("hallpassEnded").style.display = "block";
+          document.getElementById("hallpassApproved").style.display = "none";
+          document.getElementById("hallpassDenied").style.display = "none";
+          clearInterval(detectFormSubmissionInterval);
+        }
+      }
+    }
+    function detectStartHallpassFormSubmission(detectFormSubmissionInterval) {
+      return function(queryResponse) {
+        const myPassesFromToday = getMyPassesFromToday(queryResponse, <?= email ?>)
+        const myMostRecentRequestedPass = getMostRecentPass(myPassesFromToday.filter(function(pass) { return (pass[4] === "approved" || pass[4] === "denied"); }));
+        document.getElementById("hallpassEnded").style.display = "none";
+        if (myMostRecentRequestedPass?.[4] === "approved") {
+          document.getElementById("reloadWindowModal").style.display = "block";
+          document.getElementById("hallpassApproved").style.display = "block";
+          document.getElementById("hallpassIdInput").value = myMostRecentRequestedPass[0];
+          document.getElementById("hallpassDenied").style.display = "none";
+          // Hide the modal with the activation form after 60 seconds
+          const expirationInterval = setInterval(function() {
+            var expiresAfterTime = 60;
+            return function() {
+              expiresAfterTime -= 1;
+              if (expiresAfterTime < 1) {
+                document.getElementById("reloadWindowModal").style.display = "none";
+                clearInterval(expirationInterval);
+              }
+              document.getElementById("expiresAfterTime").innerHTML = expiresAfterTime;
+            }
+          }(), 1000);
+          clearInterval(detectFormSubmissionInterval);
+        } else if (myMostRecentRequestedPass?.[4] === "denied") {
+          document.getElementById("reloadWindowModal").style.display = "block";
+          document.getElementById("deniedMessage").innerHTML = myMostRecentRequestedPass[5];
+          document.getElementById("requestedPassTime").innerHTML = formatTime(new Date(myMostRecentRequestedPass[1]));
+          document.getElementById("hallpassApproved").style.display = "none";
+          document.getElementById("hallpassDenied").style.display = "block";
+          clearInterval(detectFormSubmissionInterval);
+        }
+      }
+    }
+    function getPasses(callback) {
+      console.log("Getting pass data from sheet");
+      var url =
+          "https://docs.google.com/spreadsheets/d/<?= encryptedSpreadsheetId ?>/edit#gid=0"
+      var query = new google.visualization.Query(url);
+      query.setQuery("select A, B, C, D, E, F format B '2021-11-02 12:00:00'");
+      query.send(callback);
+    }
+    function init() {
+      clearStalePasses().then(function() {
+        getPasses(processPasses);
+      });
+      //getPasses(processPasses);
+    }
+    var startHallpassForm = document.getElementById("startHallpassForm");
+    var endHallpassForm = document.getElementById("endHallpassForm");
+    function iframeReloader(action) {
+      var iframeLoads = 0;
+      return function(event) {
+        var iframe = event.target;
+        iframeLoads += 1;
+        console.log(`iframe has loaded ${iframeLoads} times`);
+        if (iframeLoads > 1) {
+          document.body.scrollTop = document.documentElement.scrollTop = 0;
+          var detectFormSubmissionInterval = setInterval(function() {
+            if (action === "start") {
+              getPasses(detectStartHallpassFormSubmission(detectFormSubmissionInterval));
+              /*
+              getPasses(function(queryResponse) {
+                clearStalePasses(queryResponse).then(function() {
+                  getPasses(detectStartHallpassFormSubmission(detectFormSubmissionInterval));
+                });
+              });
+              */
+            } else if (action === "end") {
+              getPasses(detectEndHallpassFormSubmission(detectFormSubmissionInterval));
+            }
+          }, 1000);
+        }
+      };
+    }
+    startHallpassForm.addEventListener("load", iframeReloader("start"));
+    endHallpassForm.addEventListener("load", iframeReloader("end"));
+  </script>
+
+</html>
