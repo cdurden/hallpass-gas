@@ -1,14 +1,15 @@
 const monitoringSpreadsheetId = "1iBh7bVtxBykPTX7SduUhkjVH3UmKYcLl9mD27MmDiwo";
 const encryptedSpreadsheetId = "1Uij5GC-HJB4wd8xMAgtxUe6QBSEkt_vsjCtuRHhok3M";
-const startHallpassFormId = "1FAIpQLSdbm5Yv6uqOvnqQ2lhyerIyFeTXGROZZ_uE7_vk885UqZ5pUA";
-const endHallpassFormId = "1FAIpQLSer2ZxezicVRZ8fe4JkjxJGlj4DapTcZZhMdu8RZezInqBM1g";
+const startHallpassFormId = "1FAIpQLSfeJ-dXd4DFVTteZn1g7HgNRXCLZ1GQv6BK_4V_3NWIWfMFuQ";
+const endHallpassFormId = "1FAIpQLSeJbM0fx5mZunINNxS3I5OWg4dPnZCAHCP1j-qtYHFmMIQtCg";
 
 // pass[0]: form response id
 // pass[1]: start time
 // pass[2]: email
 // pass[3]: destination
 // pass[4]: status
-// pass[5]: message
+// pass[5]: duration
+// pass[6]: message
 
 // formItemResponses[0]: destination
 
@@ -98,19 +99,19 @@ function passAllowed(pass) {
   if (
     any(periodStartTimes.map(function(periodStartTime, index) {
       if (index > 0 && (periodStartTime.getTime() - passStartTime.getTime()) > 0 && (passStartTime.getTime() - periodEndTimes[index-1].getTime()) > 0) {
-        pass[5] = `You may not start a pass between periods (between ${periodEndTimes[index-1].toString()} and ${periodStartTime.toString()}). Pass request was at ${passStartTime.toString()}`;
+        pass[6] = `You may not start a pass between periods (between ${periodEndTimes[index-1].toString()} and ${periodStartTime.toString()}). Pass request was at ${passStartTime.toString()}`;
         return true;
       }
     })) ||
     any(periodStartTimes.map(function(periodStartTime) {
       if ((passStartTime.getTime() - periodStartTime.getTime()) > 0 && (passStartTime.getTime() - periodStartTime.getTime()) < delta) {
-        pass[5] = `You may not start a pass during the first ${minuteRestriction} minutes of a class period. (between ${periodStartTime.toString()} and ${(periodStartTime+delta).toString()}). Pass request was at ${passStartTime.toString()}.`;
+        pass[6] = `You may not start a pass during the first ${minuteRestriction} minutes of a class period. (between ${periodStartTime.toString()} and ${(periodStartTime+delta).toString()}). Pass request was at ${passStartTime.toString()}.`;
         return true;
       }
     })) ||
     any(periodEndTimes.map(function(periodEndTime) {
       if ((periodEndTime - passStartTime) > 0 && (periodEndTime - passStartTime) < delta) {
-        pass[5] = `You may not start a pass during the last ${minuteRestriction} minutes of a class period. (between ${(periodEndTime-delta).toString()} and ${periodEndTime.toString()}). Pass request was at ${passStartTime})`;
+        pass[6] = `You may not start a pass during the last ${minuteRestriction} minutes of a class period. (between ${(periodEndTime-delta).toString()} and ${periodEndTime.toString()}). Pass request was at ${passStartTime})`;
         return true;
       }
     }))) {
@@ -166,18 +167,8 @@ function getDurationString(start, end) {
 function getRowIndexFromId(id, sheet) {
   const height = sheet.getDataRange().getHeight();
   const ids = sheet.getRange(1, 1, height).getValues();
-  //The following code removes rows containing duplicated response ids.
-  //This is intended to fix an issue related to multiple entries having the same response id.
-  //This issue arose because multiple rows were recorded for the same Google Form response.
-  //It replaces the commented code below.
-  const matchingRowIndexes = [];
-  ids.forEach(function(row, i) { if (row[0] === id) { matchingRowIndexes.push(i); } });
-  const index = matchingRowIndexes.sort(function(a,b) { return(b-a); }).pop();
-  matchingRowIndexes.forEach(function(rowIndex) {
-    sheet.deleteRow(rowIndex+1);
-  })
-  //var index;
-  //ids.forEach(function(row, i) { if (row[0] === id) { index = i; } });
+  var index;
+  ids.forEach(function(row, i) { if (row[0] === id) { index = i; } });
   return index;
 }
 function updatePassOnSheet(pass, sheet) {
@@ -204,6 +195,7 @@ function endPass(pass) {
   const start = new Date(pass[1]).getTime();
   const durationString = getDurationString(start, now);
   pass[4] = 'inactive';
+  pass[5] = durationString;
   updatePass(pass);
 }
 function onEndHallpassFormSubmit(event) {

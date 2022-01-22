@@ -31,10 +31,24 @@
         border: 1px solid #888;
         width: 80%; /* Could be more or less, depending on screen size */
       }
+      #processingIndicator {
+        display: none;
+        border: 16px solid #f3f3f3; /* Light grey */
+        border-top: 16px solid #3498db; /* Blue */
+        border-radius: 50%;
+        width: 120px;
+        height: 120px;
+        animation: spin 2s linear infinite;
+      }
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
     </style>
   </head>
 
   <body>
+    <center><div id="processingIndicator"></div></center>
     <p>
       <b>You are logged in as:</b> <?= email; ?>
     </p>
@@ -132,6 +146,13 @@
           var min = Math.floor(seconds/60);
           var hour = Math.floor(min/60);
           document.getElementById("activePassDuration").innerHTML = `${pad(hour,2)}:${pad(min - hour*60,2)}:${pad(seconds - min*60,2)}`;
+          if (min > 9) {
+            document.getElementById("activePassInfo").style['background-color'] = "red";
+          } else if (min > 4) {
+            document.getElementById("activePassInfo").style['background-color'] = "yellow";
+          } else {
+            document.getElementById("activePassInfo").style['background-color'] = "green";
+          }
       }, 1000);
     }
     function updatePassInfo (myMostRecentActivePass, passesUsed, passLimit) {
@@ -167,7 +188,7 @@
       const hours = date.getHours() % 12;
       const mins = date.getMinutes();
       const ampm = date.getHours() >= 12 ? 'pm' : 'am';
-      return `${hours}:${mins} ${ampm}`;
+      return `${hours}:${pad(mins,2)} ${ampm}`;
     }
     function getMyPassesFromToday(queryResponse, email) {
       const passDataTable = queryResponse.getDataTable();
@@ -206,7 +227,7 @@
       const myPassesFromToday = getMyPassesFromToday(queryResponse, <?= email ?>)
       const myMostRecentActivePass = getMostRecentPass(myPassesFromToday.filter(function(pass) { return pass[4] === "active"; }));
       const passesUsed = myPassesFromToday.filter(function(pass) { return (pass[4] === "active" || pass[4] === "inactive"); }).length;
-      const passLimit = 100;
+      const passLimit = 2;
       updatePassInfo(myMostRecentActivePass, passesUsed, passLimit);
     }
     function clearStalePasses() {
@@ -234,6 +255,7 @@
           document.getElementById("hallpassEnded").style.display = "block";
           document.getElementById("hallpassApproved").style.display = "none";
           document.getElementById("hallpassDenied").style.display = "none";
+          document.getElementById("processingIndicator").style.display = "none";
           clearInterval(detectFormSubmissionInterval);
         }
       }
@@ -260,13 +282,15 @@
               document.getElementById("expiresAfterTime").innerHTML = expiresAfterTime;
             }
           }(), 1000);
+          document.getElementById("processingIndicator").style.display = "none";
           clearInterval(detectFormSubmissionInterval);
         } else if (myMostRecentRequestedPass?.[4] === "denied") {
           document.getElementById("reloadWindowModal").style.display = "block";
-          document.getElementById("deniedMessage").innerHTML = myMostRecentRequestedPass[5];
+          document.getElementById("deniedMessage").innerHTML = myMostRecentRequestedPass[6];
           document.getElementById("requestedPassTime").innerHTML = formatTime(new Date(myMostRecentRequestedPass[1]));
           document.getElementById("hallpassApproved").style.display = "none";
           document.getElementById("hallpassDenied").style.display = "block";
+          document.getElementById("processingIndicator").style.display = "none";
           clearInterval(detectFormSubmissionInterval);
         }
       }
@@ -276,7 +300,7 @@
       var url =
           "https://docs.google.com/spreadsheets/d/<?= encryptedSpreadsheetId ?>/edit#gid=0"
       var query = new google.visualization.Query(url);
-      query.setQuery("select A, B, C, D, E, F format B '2021-11-02 12:00:00'");
+      query.setQuery("select A, B, C, D, E, F, G format B '2021-11-02 12:00:00'");
       query.send(callback);
     }
     function init() {
@@ -294,6 +318,7 @@
         iframeLoads += 1;
         console.log(`iframe has loaded ${iframeLoads} times`);
         if (iframeLoads > 1) {
+          document.getElementById("processingIndicator").style.display = "block";
           document.body.scrollTop = document.documentElement.scrollTop = 0;
           var detectFormSubmissionInterval = setInterval(function() {
             if (action === "start") {
