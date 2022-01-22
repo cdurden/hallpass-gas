@@ -167,8 +167,20 @@ function getDurationString(start, end) {
 function getRowIndexFromId(id, sheet) {
   const height = sheet.getDataRange().getHeight();
   const ids = sheet.getRange(1, 1, height).getValues();
+  /* The following code removes rows containing duplicated response ids.
+     This is intended to fix an issue related to multiple entries having the same response id.
+     This issue arose because multiple rows were recorded for the same Google Form response.
+     It replaces the commented code below. */
+  const matchingRowIndexes = [];
+  ids.forEach(function(row, i) { if (row[0] === id) { matchingRowIndexes.push(i); } });
+  const index = matchingRowIndexes.sort(function(a,b) { return(b-a); }).pop();
+  matchingRowIndexes.forEach(function(rowIndex) {
+    sheet.deleteRow(rowIndex+1);
+  })
+  /*
   var index;
   ids.forEach(function(row, i) { if (row[0] === id) { index = i; } });
+  */
   return index;
 }
 function updatePassOnSheet(pass, sheet) {
