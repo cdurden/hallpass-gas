@@ -1,5 +1,17 @@
 const monitoringSpreadsheetId = "1iBh7bVtxBykPTX7SduUhkjVH3UmKYcLl9mD27MmDiwo";
 const encryptedSpreadsheetId = "1Uij5GC-HJB4wd8xMAgtxUe6QBSEkt_vsjCtuRHhok3M";
+const startHallpassFormId = "1FAIpQLSfeJ-dXd4DFVTteZn1g7HgNRXCLZ1GQv6BK_4V_3NWIWfMFuQ";
+const endHallpassFormId = "1FAIpQLSeJbM0fx5mZunINNxS3I5OWg4dPnZCAHCP1j-qtYHFmMIQtCg";
+
+// pass[0]: form response id
+// pass[1]: start time
+// pass[2]: email
+// pass[3]: destination
+// pass[4]: status
+// pass[5]: duration
+// pass[6]: message
+
+// formItemResponses[0]: destination
 
 function include(filename) {
   return HtmlService.createHtmlOutputFromFile(filename)
@@ -7,23 +19,51 @@ function include(filename) {
       .getContent();
 }
 function doGet(e) {
-  var profile = Session.getActiveUser();
-  var t = HtmlService.createTemplateFromFile('Index')
+  const profile = Session.getActiveUser();
+  const t = HtmlService.createTemplateFromFile('Index')
   t.email = profile.getEmail(); // This is null if the 'email' scope is not present.
   t.encryptedSpreadsheetId = encryptedSpreadsheetId;
+  t.startHallpassFormId = startHallpassFormId;
+  t.endHallpassFormId = endHallpassFormId;
   t.hallpassAppUrl = ScriptApp.getService().getUrl();
-  var output = t.evaluate();
+  const output = t.evaluate();
   output.setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
   return output;
 }
+function doPost(e) {
+  const profile = Session.getActiveUser();
+  const t = HtmlService.createTemplateFromFile('Index')
+  const email = profile.getEmail(); // This is null if the 'email' scope is not present.
+  if (e.parameter.action === 'activate') {
+    const monitoringSheet = SpreadsheetApp.openById(monitoringSpreadsheetId).getSheets()[0];
+    const pass = getPassFromId(e.parameter.passId, monitoringSheet);
+    if (pass !== undefined) {
+      activatePass(pass);
+    }
+  } else if (JSON.parse(e.postData.contents).action === 'clearStalePasses') {
+    console.error("Clearing stale passes.");
+    const monitoringSheet = SpreadsheetApp.openById(monitoringSpreadsheetId).getSheets()[0];
+    const encryptedSheet = SpreadsheetApp.openById(encryptedSpreadsheetId).getSheets()[0];
+    clearMyRequestedPasses(encryptedSheet, toHexString(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, email)));
+    clearMyRequestedPasses(monitoringSheet, email);
+    throw("Cleared stale passes.")
+  }
+  t.email = email;
+  t.encryptedSpreadsheetId = encryptedSpreadsheetId;
+  t.hallpassAppUrl = ScriptApp.getService().getUrl();
+  const output = t.evaluate();
+  output.setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  return output;
+}
+
 function toHexString(signature) {
   return signature
     .map(function(byte) {
-        // Convert from 2's compliment
-        var v = (byte < 0) ? 256 + byte : byte;
+      // Convert from 2's compliment
+      var v = (byte < 0) ? 256 + byte : byte;
 
-        // Convert byte to hexadecimal
-        return ("0" + v.toString(16)).slice(-2);
+      // Convert byte to hexadecimal
+      return ("0" + v.toString(16)).slice(-2);
     })
     .join("");
 }
@@ -42,23 +82,42 @@ function padWholeNumber(num, size) {
     return num;
 }
 function passAllowed(pass) {
-  const passStartTime = new Date(pass[0]);
-  const delta = 600000;
+  const passStartTime = new Date(pass[1]);
+  const oneMinute = 60000;
+  const minuteRestriction = 1;
+  const delta = minuteRestriction*oneMinute;
   function getDatetime([hours, mins]) {
     const datetime = new Date();
     datetime.setHours(hours, mins);
     return datetime;
   }
-  const periodStartTimes = [[8,40],[9,21],[10,2],[10,43],[11,24],[11,55],[12,26],[12,57],[1,38],[2,19]].map(getDatetime);
-  const periodEndTimes = [[9,20],[10,1],[10,42],[11,23],[11,54],[12,25],[12,56],[1,37],[2,18],[2,59]].map(getDatetime);
-  return !(
-    any(periodStartTimes.map(function(periodStartTime){
-      return (passStartTime - periodStartTime) > 0 && (passStartTime - periodStartTime) < delta;
+  //const periodStartTimes = [[8,40],[9,21],[10,2],[10,43],[11,24],[11,55],[12,26],[12,57],[13,38],[14,19]].map(getDatetime);
+  //const periodEndTimes = [[9,20],[10,1],[10,42],[11,23],[11,54],[12,25],[12,56],[13,37],[14,18],[14,59]].map(getDatetime);
+  const cartesian = (...a) => a.reduce((a, b) => a.flatMap(d => b.map(e => [d, e].flat())));
+  const periodStartTimes = cartesian(Array(24).fill().map(function(elmt, index) { return index; }), Array(12).fill().map(function(elmt, index) { return index*5+1; })).map(getDatetime);
+  const periodEndTimes = cartesian(Array(24).fill().map(function(elmt, index) { return index; }), Array(12).fill().map(function(elmt, index) { return index*5; })).map(getDatetime);
+  if (
+    any(periodStartTimes.map(function(periodStartTime, index) {
+      if (index > 0 && (periodStartTime.getTime() - passStartTime.getTime()) > 0 && (passStartTime.getTime() - periodEndTimes[index-1].getTime()) > 0) {
+        pass[6] = `You may not start a pass between periods (between ${periodEndTimes[index-1].toString()} and ${periodStartTime.toString()}). Pass request was at ${passStartTime.toString()}`;
+        return true;
+      }
     })) ||
-    any(periodEndTimes.map(function(periodEndTime){
-      return (periodEndTime - passStartTime) > 0 && (periodEndTime - passStartTime) < delta;
-    }))
-  );
+    any(periodStartTimes.map(function(periodStartTime) {
+      if ((passStartTime.getTime() - periodStartTime.getTime()) > 0 && (passStartTime.getTime() - periodStartTime.getTime()) < delta) {
+        pass[6] = `You may not start a pass during the first ${minuteRestriction} minutes of a class period. (between ${periodStartTime.toString()} and ${(periodStartTime+delta).toString()}). Pass request was at ${passStartTime.toString()}.`;
+        return true;
+      }
+    })) ||
+    any(periodEndTimes.map(function(periodEndTime) {
+      if ((periodEndTime - passStartTime) > 0 && (periodEndTime - passStartTime) < delta) {
+        pass[6] = `You may not start a pass during the last ${minuteRestriction} minutes of a class period. (between ${(periodEndTime-delta).toString()} and ${periodEndTime.toString()}). Pass request was at ${passStartTime})`;
+        return true;
+      }
+    }))) {
+      return false;
+  }
+  return true
 }
 function getMostRecentActivePassRowNumber(data, email) {
   var mostRecentRow;
@@ -73,18 +132,14 @@ function getMostRecentActivePassRowNumber(data, email) {
   }
   return mostRecentRowNumber;
 }
-function getMyPassesFromToday(sheet, email, encrypted = false) {
+function getMyPassesFromToday(sheet, email) {
   const data = sheet.getDataRange().getValues();
   const nRows = data.length;
   const passes = [];
-  if (encrypted) {
-    email === sha256(email);
-  }
   // Get today's most recent active pass for this user
   for (var i = 1; i < nRows; i++) {
       var pass = data[i];
-      pass.push(i);
-      if (pass[1] === email && isToday(new Date(pass[0]))) {
+      if (pass[2] === email && isToday(new Date(pass[1]))) {
         passes.push(pass);
       }
   }
@@ -95,7 +150,7 @@ function getMostRecentPass(passes) {
   var mostRecentPass;
   for (var pass of passes) {
     console.log(pass);
-    if (pass[0] > mostRecentPass?.[0] || mostRecentPass === undefined) {
+    if (pass[1] > mostRecentPass?.[1] || mostRecentPass === undefined) {
       mostRecentPass = pass;
     }
   }
@@ -109,44 +164,103 @@ function getDurationString(start, end) {
   const durationString = `${hour}:${padWholeNumber(min - hour*60,2)}:${padWholeNumber(seconds - min*60,2)}`;
   return durationString;
 }
-function updateMonitoringSheet(response) {
-  const monitoringSheet = SpreadsheetApp.openById(monitoringSpreadsheetId).getSheets()[0];
-  const myPassesFromToday = getMyPassesFromToday(monitoringSheet, response.getRespondentEmail(), false);
-  const myMostRecentPass = getMostRecentPass(myPassesFromToday);
-  const now = Date.now();
-  const start = new Date(myMostRecentPass[0]).getTime();
-  const durationString = getDurationString(start, now);
-  // End pass
-  const myMostRecentPassRowIndex = myMostRecentPass.slice(-1)[0];
-  monitoringSheet.getRange(myMostRecentPassRowIndex+1, 4, 1, 2).setValues([["inactive", durationString]]);
+function getRowIndexFromId(id, sheet) {
+  const height = sheet.getDataRange().getHeight();
+  const ids = sheet.getRange(1, 1, height).getValues();
+  var index;
+  ids.forEach(function(row, i) { if (row[0] === id) { index = i; } });
+  return index;
 }
-function onEndFormSubmit(response) {
+function updatePassOnSheet(pass, sheet) {
+  const rowIndex = getRowIndexFromId(pass[0], sheet)
+  sheet.getRange(rowIndex+1, 1, 1, pass.length).setValues([pass]);
+}
+function updatePass(pass) {
+  const monitoringSheet = SpreadsheetApp.openById(monitoringSpreadsheetId).getSheets()[0];
   const encryptedSheet = SpreadsheetApp.openById(encryptedSpreadsheetId).getSheets()[0];
-  const myPassesFromToday = getMyPassesFromToday(encryptedSheet, response.getRespondentEmail(), true);
-  const myMostRecentPass = getMostRecentPass(myPassesFromToday);
-  const myMostRecentPassRowIndex = myMostRecentPass.slice(-1)[0];
-  encryptedSheet.getRange(myMostRecentPassRowIndex+1, 4, 1, 1).setValues([["inactive"]]);
-  updateMonitoringSheet(response);
+  updatePassOnSheet(pass, monitoringSheet);
+  const encryptedPass = encryptPass(pass);
+  updatePassOnSheet(encryptedPass, encryptedSheet);
+}
+function getPassFromId(id, sheet) {
+  console.error(id);
+  const rowIndex = getRowIndexFromId(id, sheet);
+  const width = sheet.getDataRange().getWidth();
+  if (rowIndex !== undefined) {
+    return sheet.getRange(rowIndex+1, 1, 1, width).getValues()[0];
+  }
+}
+function endPass(pass) {
+  const now = Date.now();
+  const start = new Date(pass[1]).getTime();
+  const durationString = getDurationString(start, now);
+  pass[4] = 'inactive';
+  pass[5] = durationString;
+  updatePass(pass);
+}
+function onEndHallpassFormSubmit(event) {
+  const response = event.response;
+  const monitoringSheet = SpreadsheetApp.openById(monitoringSpreadsheetId).getSheets()[0];
+  const myActivePassesFromToday = getMyPassesFromToday(monitoringSheet, response.getRespondentEmail()).filter(function(pass) { return (pass[4] === "active"); });
+  const myMostRecentActivePass = getMostRecentPass(myActivePassesFromToday);
+  if(myMostRecentActivePass !== undefined) {
+    endPass(myMostRecentActivePass);
+  }
 }
 function appendPassToSheet(sheet, pass) {
   const height = sheet.getDataRange().getHeight();
-  sheet.getRange(height+1, 1, 1, 4).setValues([pass]);
+  sheet.getRange(height+1, 1, 1, pass.length).setValues([pass]);
 }
 function encryptPass(pass) {
   const encryptedPass = [...pass]
-  encryptedPass[1] = toHexString(Utilities.computeDigest(pass[1]));
+  encryptedPass[2] = toHexString(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, pass[2]));
   return encryptedPass;
 }
+function createPass(response, status) {
+  const formItemResponses = response.getItemResponses();
+  const passStartTime = new Date(response.getTimestamp());
+  const pass = [response.getId(), Utilities.formatDate(passStartTime, 'America/Chicago', 'MM/dd/yyyy HH:mm:ss'), response.getRespondentEmail(), formItemResponses[0].getResponse(), status, ''];
+  return pass;
+}
 function onStartHallpassFormSubmit(event) {
-  var response = event.response;
-  var itemResponses = response.getItemResponses();
-  var passStartTime = new Date(response.getTimestamp());
+  const response = event.response;
   const monitoringSheet = SpreadsheetApp.openById(monitoringSpreadsheetId).getSheets()[0];
   const encryptedSheet = SpreadsheetApp.openById(encryptedSpreadsheetId).getSheets()[0];
-  if (true || passAllowed(pass)) { // FIXME: Checking times is disabled.
-    const pass = [Utilities.formatDate(passStartTime, 'America/Chicago', 'MM/dd/yyyy HH:mm:ss'), response.getRespondentEmail(), itemResponses[0].getResponse(), 'active'];
-    const encryptedPass = encryptPass(pass);
-    appendPassToSheet(monitoringSheet, pass);
-    appendPassToSheet(encryptedSheet, encryptedPass);
+  const email = response.getRespondentEmail();
+  clearMyRequestedPasses(encryptedSheet, toHexString(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, email)));
+  clearMyRequestedPasses(monitoringSheet, email);
+  var pass, encryptedPass;
+  pass = createPass(response, 'requested');
+  if (passAllowed(pass)) {
+    pass[4] = "approved";
+  } else {
+    pass[4] = "denied";
   }
+  encryptedPass = encryptPass(pass);
+  appendPassToSheet(monitoringSheet, pass);
+  appendPassToSheet(encryptedSheet, encryptedPass);
 }
+function clearMyRequestedPasses(sheet, email) {
+  const myPassesFromToday = getMyPassesFromToday(sheet, email);
+  const myRequestedPassesFromToday = myPassesFromToday.filter(function(pass) { return(pass[4] === "approved" || pass[4] === "denied");})
+  myRequestedPassesFromToday.forEach(function(pass) {
+    pass[4] = "defunct";
+    updatePassOnSheet(pass, sheet);
+  });
+}
+function activatePass(pass) {
+  pass[4] = "active";
+  updatePass(pass);
+}
+/*
+function acknowledgePassStatus(pass) {
+  const monitoringSheet = SpreadsheetApp.openById(monitoringSpreadsheetId).getSheets()[0];
+  const encryptedSheet = SpreadsheetApp.openById(encryptedSpreadsheetId).getSheets()[0];
+  if (pass[4] === "denied") {
+    pass[4] === "defunct";
+  } else if (pass[4] === "approved") {
+    pass[4] === "unactivated";
+  }
+  [monitoringSheet, encryptedSheet].forEach(function(sheet) { updatePass(pass, sheet); });
+}
+*/
